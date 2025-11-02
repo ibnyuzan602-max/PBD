@@ -53,7 +53,6 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
-
 # ======================
 # ⚙️ Konfigurasi Halaman
 # ======================
@@ -66,7 +65,6 @@ if "page" not in st.session_state:
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-
 # ======================
 # 🔄 Navigasi Aman
 # ======================
@@ -74,7 +72,6 @@ def go_to(page_name: str):
     """Navigasi aman tanpa klik dua kali & tanpa halaman kosong."""
     st.session_state["page"] = page_name
     st.rerun()
-
 
 # ======================
 # 🏠 HALAMAN HOME
@@ -89,7 +86,6 @@ if st.session_state["page"] == "home":
         st.button("🔐 Login", use_container_width=True, on_click=lambda: go_to("login"))
     with col2:
         st.button("🆕 Daftar", use_container_width=True, on_click=lambda: go_to("signup"))
-
 
 # ======================
 # 🔐 HALAMAN LOGIN
@@ -116,7 +112,6 @@ elif st.session_state["page"] == "login":
     st.button("👉 Daftar Sekarang", on_click=lambda: go_to("signup"))
     st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
 
-
 # ======================
 # 📝 HALAMAN SIGN UP
 # ======================
@@ -142,7 +137,6 @@ elif st.session_state["page"] == "signup":
 
     st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
 
-
 # ======================
 # 📊 HALAMAN DASHBOARD
 # ======================
@@ -162,7 +156,15 @@ elif st.session_state["page"] == "dashboard":
     df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
     users_df = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
     user_data = df[df["User"] == user]
-    total_budget = users_df.loc[users_df["Email"] == user, "Total_Budget"].iloc[0] if user in users_df["Email"].values else 0
+
+    # Pastikan total_budget numerik
+    if user in users_df["Email"].values:
+        try:
+            total_budget = float(users_df.loc[users_df["Email"] == user, "Total_Budget"].iloc[0])
+        except (ValueError, TypeError):
+            total_budget = 0
+    else:
+        total_budget = 0
 
     # ===== Tambah transaksi =====
     st.subheader("🧾 Tambah Transaksi Baru")
@@ -194,11 +196,18 @@ elif st.session_state["page"] == "dashboard":
         pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
         sisa = pemasukan - pengeluaran
 
+        # Safe metrics
+        def safe_number(val):
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return 0
+
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Pemasukan", f"Rp {pemasukan:,.0f}")
-        col2.metric("Pengeluaran", f"Rp {pengeluaran:,.0f}")
-        col3.metric("Sisa", f"Rp {sisa:,.0f}")
-        col4.metric("Budget Awal", f"Rp {total_budget:,.0f}")
+        col1.metric("Pemasukan", f"Rp {safe_number(pemasukan):,.0f}")
+        col2.metric("Pengeluaran", f"Rp {safe_number(pengeluaran):,.0f}")
+        col3.metric("Sisa", f"Rp {safe_number(sisa):,.0f}")
+        col4.metric("Budget Awal", f"Rp {safe_number(total_budget):,.0f}")
 
         # ===== Grafik Time Series =====
         st.subheader("📆 Tren Transaksi dari Waktu ke Waktu")
@@ -226,10 +235,10 @@ elif st.session_state["page"] == "dashboard":
         st.subheader("🤖 Analisis Keuangan AI")
         prompt = f"""
 Analisis keuangan user {user}:
-- Total pemasukan: {pemasukan}
-- Total pengeluaran: {pengeluaran}
-- Sisa budget: {sisa}
-- Total budget awal: {total_budget}
+- Total pemasukan: {safe_number(pemasukan)}
+- Total pengeluaran: {safe_number(pengeluaran)}
+- Sisa budget: {safe_number(sisa)}
+- Total budget awal: {safe_number(total_budget)}
 
 Berikan 3 saran keuangan pribadi untuk minggu depan.
 """
