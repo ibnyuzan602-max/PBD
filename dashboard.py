@@ -227,6 +227,35 @@ elif menu == "Dashboard":
             ax2.set_title("Total Transaksi per Kategori")
             st.pyplot(fig2)
 
+            # ===== Grafik Time Series =====
+            st.subheader("📆 Tren Transaksi dari Waktu ke Waktu")
+
+            # Pastikan kolom tanggal bertipe datetime
+            user_data["Tanggal"] = pd.to_datetime(user_data["Tanggal"], errors="coerce")
+
+            # Urutkan data berdasarkan tanggal
+            user_data = user_data.sort_values("Tanggal")
+
+            # Hitung total pengeluaran dan pemasukan per tanggal
+            daily_summary = user_data.groupby("Tanggal")["Jumlah"].sum().reset_index()
+
+            # Buat line chart dengan matplotlib
+            fig3, ax3 = plt.subplots()
+            ax3.plot(daily_summary["Tanggal"], daily_summary["Jumlah"], marker="o", linestyle="-")
+            ax3.axhline(0, color="gray", linestyle="--", linewidth=1)
+            ax3.set_title("Tren Harian Pengeluaran & Pemasukan")
+            ax3.set_xlabel("Tanggal")
+            ax3.set_ylabel("Jumlah (Rp)")
+            st.pyplot(fig3)
+
+            # --- Atau, versi Streamlit langsung ---
+            st.write("📈 Visualisasi Interaktif")
+            st.line_chart(
+            data=daily_summary.set_index("Tanggal"),
+            y="Jumlah",
+            use_container_width=True
+            )
+
             # ===== Analisis AI =====
             st.subheader("🤖 Analisis Keuangan AI")
             prompt = f"""
