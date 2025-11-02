@@ -204,7 +204,7 @@ elif menu == "Dashboard":
             st.metric("Total Pengeluaran", f"Rp {pengeluaran:,.0f}")
             st.metric("Sisa Budget", f"Rp {sisa:,.0f}")
 
-            # ====== ✅ Analisis AI (diperbaiki) ======
+            # ====== ✅ Analisis AI (Perbaikan Lengkap) ======
             st.subheader("🧠 Analisis Keuangan AI")
             prompt = f"""
 Analisis keuangan user {user}:
@@ -218,8 +218,9 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
             if st.button("Analisis Sekarang"):
                 with st.spinner("AI sedang menganalisis..."):
                     try:
+                        # Gunakan model yang tersedia dan stabil
                         response = client.chat.completions.create(
-                            model="mixtral-8x7b",  # model lebih stabil
+                            model="llama3-70b-8192",
                             messages=[
                                 {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberikan saran berdasarkan data pengguna."},
                                 {"role": "user", "content": prompt}
@@ -230,9 +231,9 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
                         hasil = response.choices[0].message.content
                         st.success("✅ Analisis Selesai")
                         st.write(hasil)
+
                     except Exception as e:
                         st.error("❌ Gagal menganalisis dengan Groq API.")
                         st.exception(e)
-
         else:
             st.info("Belum ada transaksi. Tambahkan data untuk analisis AI.")
