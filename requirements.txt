@@ -6,5 +6,7 @@ plotly
 groq
 requests
 matplotlib
+altair
+
 
 
