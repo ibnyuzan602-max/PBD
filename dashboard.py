@@ -10,7 +10,6 @@ Original file is located at
 import streamlit as st
 import pandas as pd
 import bcrypt
-from openai import OpenAI
 from dotenv import load_dotenv
 import os
 from datetime import datetime
