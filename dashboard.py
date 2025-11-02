@@ -28,7 +28,7 @@ if not api_key:
 client = Groq(api_key=api_key)
 
 # ======================
-# 🧱 Setup & File
+# 📁 Setup File
 # ======================
 EXPECTED_USERS_COLS = ["Email", "Password", "Total_Budget"]
 EXPECTED_TRANSACTIONS_COLS = ["User", "Tanggal", "Kategori", "Jumlah"]
@@ -47,14 +47,12 @@ def load_or_create_csv(filename, expected_cols):
             df[col] = ""
     return df[expected_cols]
 
-users_df = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
-trans_df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
-
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
 
 # ======================
 # ⚙️ Konfigurasi Halaman
@@ -67,13 +65,18 @@ if "page" not in st.session_state:
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-def go_to(page_name: str):
-    st.session_state["page"] = page_name
-    st.session_state["rerun_flag"] = True
 
-# Jalankan rerun manual jika flag aktif
-if st.session_state.get("rerun_flag", False):
-    st.session_state["rerun_flag"] = False
+# ======================
+# 🔄 Navigasi Aman
+# ======================
+def go_to(page_name: str):
+    """Navigasi tanpa klik dua kali."""
+    st.session_state["page"] = page_name
+    st.session_state["trigger_rerun"] = True
+    st.stop()
+
+if st.session_state.get("trigger_rerun", False):
+    st.session_state["trigger_rerun"] = False
     st.rerun()
 
 
@@ -83,15 +86,14 @@ if st.session_state.get("rerun_flag", False):
 if st.session_state["page"] == "home":
     st.markdown("## 💰 **FinSmart AI**")
     st.markdown("### Selamat datang di aplikasi manajemen keuangan pintar Anda! 💡")
-    st.markdown("Kelola pemasukan, pengeluaran, dan dapatkan saran AI untuk keuangan Anda 🔑")
+    st.write("Kelola pemasukan, pengeluaran, dan dapatkan saran AI keuangan pribadi Anda 🔑")
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🔐 Login", use_container_width=True):
-            go_to("login")
+        st.button("🔐 Login", use_container_width=True, on_click=lambda: go_to("login"))
     with col2:
-        if st.button("🆕 Daftar", use_container_width=True):
-            go_to("signup")
+        st.button("🆕 Daftar", use_container_width=True, on_click=lambda: go_to("signup"))
+
 
 # ======================
 # 🔐 HALAMAN LOGIN
@@ -115,11 +117,9 @@ elif st.session_state["page"] == "login":
             st.error("❌ Email tidak ditemukan.")
 
     st.info("Belum punya akun?")
-    if st.button("👉 Daftar Sekarang"):
-        go_to("signup")
+    st.button("👉 Daftar Sekarang", on_click=lambda: go_to("signup"))
+    st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
 
-    if st.button("⬅ Kembali ke Beranda"):
-        go_to("home")
 
 # ======================
 # 📝 HALAMAN SIGN UP
@@ -142,10 +142,10 @@ elif st.session_state["page"] == "signup":
             users = pd.concat([users, new_user], ignore_index=True)
             users.to_csv("users.csv", index=False)
             st.success("✅ Akun berhasil dibuat! Silakan login.")
-            go_to("login")
+            st.button("⬅ Kembali ke Login", on_click=lambda: go_to("login"))
 
-    if st.button("⬅ Kembali ke Beranda"):
-        go_to("home")
+    st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
+
 
 # ======================
 # 📊 HALAMAN DASHBOARD
@@ -163,14 +163,10 @@ elif st.session_state["page"] == "dashboard":
         go_to("home")
 
     # Load data
-    df = normalize_columns(pd.read_csv("transactions.csv"))
-    users_df = normalize_columns(pd.read_csv("users.csv"))
-    df = df[EXPECTED_TRANSACTIONS_COLS]
-    users_df = users_df[EXPECTED_USERS_COLS]
-
+    df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
+    users_df = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
     user_data = df[df["User"] == user]
-    user_budget_row = users_df.loc[users_df["Email"] == user]
-    total_budget = user_budget_row["Total_Budget"].iloc[0] if not user_budget_row.empty else 0
+    total_budget = users_df.loc[users_df["Email"] == user, "Total_Budget"].iloc[0] if user in users_df["Email"].values else 0
 
     # ===== Tambah transaksi =====
     st.subheader("🧾 Tambah Transaksi Baru")
@@ -190,7 +186,7 @@ elif st.session_state["page"] == "dashboard":
         df = pd.concat([df, new_row], ignore_index=True)
         df.to_csv("transactions.csv", index=False)
         st.success("✅ Transaksi berhasil disimpan!")
-        st.experimental_rerun()
+        st.rerun()
 
     # ===== Tampilkan data =====
     st.subheader("📋 Riwayat Transaksi")
