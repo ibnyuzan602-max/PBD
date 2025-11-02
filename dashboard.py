@@ -69,7 +69,13 @@ if "logged_in" not in st.session_state:
 
 def go_to(page_name: str):
     st.session_state["page"] = page_name
-    st.experimental_rerun()
+    st.session_state["rerun_flag"] = True
+
+# Jalankan rerun manual jika flag aktif
+if st.session_state.get("rerun_flag", False):
+    st.session_state["rerun_flag"] = False
+    st.rerun()
+
 
 # ======================
 # 🏠 HALAMAN HOME
