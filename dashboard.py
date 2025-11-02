@@ -54,10 +54,7 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(password: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-    except Exception:
-        return False
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 # ======================
 # ⚙️ Konfigurasi Halaman
@@ -70,26 +67,25 @@ if "page" not in st.session_state:
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# ======================
-# 🧭 Navigasi Otomatis
-# ======================
 def go_to(page_name: str):
     st.session_state["page"] = page_name
-    st.rerun()
+    st.experimental_rerun()
 
 # ======================
-# 🏠 HALAMAN AWAL / HOME
+# 🏠 HALAMAN HOME
 # ======================
 if st.session_state["page"] == "home":
-    st.title("💰 FinSmart AI")
-    st.subheader("Selamat datang di aplikasi manajemen keuangan pintar Anda!")
-    st.markdown("Kelola pemasukan, pengeluaran, dan dapatkan saran AI untuk keuangan Anda 💡")
+    st.markdown("## 💰 **FinSmart AI**")
+    st.markdown("### Selamat datang di aplikasi manajemen keuangan pintar Anda! 💡")
+    st.markdown("Kelola pemasukan, pengeluaran, dan dapatkan saran AI untuk keuangan Anda 🔑")
 
     col1, col2 = st.columns(2)
     with col1:
-        st.button("🔑 Login", use_container_width=True, on_click=lambda: go_to("login"))
+        if st.button("🔐 Login", use_container_width=True):
+            go_to("login")
     with col2:
-        st.button("🆕 Daftar", use_container_width=True, on_click=lambda: go_to("signup"))
+        if st.button("🆕 Daftar", use_container_width=True):
+            go_to("signup")
 
 # ======================
 # 🔐 HALAMAN LOGIN
@@ -99,7 +95,7 @@ elif st.session_state["page"] == "login":
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
-    if st.button("Masuk"):
+    if st.button("Login"):
         users = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
         if email in users["Email"].values:
             user_data = users[users["Email"] == email].iloc[0]
@@ -113,8 +109,11 @@ elif st.session_state["page"] == "login":
             st.error("❌ Email tidak ditemukan.")
 
     st.info("Belum punya akun?")
-    st.button("🆕 Daftar Sekarang", on_click=lambda: go_to("signup"))
-    st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
+    if st.button("👉 Daftar Sekarang"):
+        go_to("signup")
+
+    if st.button("⬅ Kembali ke Beranda"):
+        go_to("home")
 
 # ======================
 # 📝 HALAMAN SIGN UP
@@ -137,15 +136,16 @@ elif st.session_state["page"] == "signup":
             users = pd.concat([users, new_user], ignore_index=True)
             users.to_csv("users.csv", index=False)
             st.success("✅ Akun berhasil dibuat! Silakan login.")
-            st.button("⬅ Kembali ke Login", on_click=lambda: go_to("login"))
+            go_to("login")
 
-    st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
+    if st.button("⬅ Kembali ke Beranda"):
+        go_to("home")
 
 # ======================
 # 📊 HALAMAN DASHBOARD
 # ======================
 elif st.session_state["page"] == "dashboard":
-    if not st.session_state["logged_in"]:
+    if not st.session_state.get("logged_in", False):
         go_to("login")
 
     user = st.session_state["user"]
@@ -184,7 +184,7 @@ elif st.session_state["page"] == "dashboard":
         df = pd.concat([df, new_row], ignore_index=True)
         df.to_csv("transactions.csv", index=False)
         st.success("✅ Transaksi berhasil disimpan!")
-        st.rerun()
+        st.experimental_rerun()
 
     # ===== Tampilkan data =====
     st.subheader("📋 Riwayat Transaksi")
@@ -204,7 +204,6 @@ elif st.session_state["page"] == "dashboard":
 
         # ===== Grafik Time Series =====
         st.subheader("📆 Tren Transaksi dari Waktu ke Waktu")
-
         user_data["Tanggal"] = pd.to_datetime(user_data["Tanggal"], errors="coerce")
         daily_summary = user_data.groupby("Tanggal")["Jumlah"].sum().reset_index()
 
