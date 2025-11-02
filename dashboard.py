@@ -58,6 +58,7 @@ def verify_password(password: str, hashed: str) -> bool:
 # ⚙️ Konfigurasi Halaman
 # ======================
 st.set_page_config(page_title="FinSmart AI", page_icon="💰")
+st.set_option("client.showErrorDetails", True)
 
 # Inisialisasi session state
 if "page" not in st.session_state:
@@ -70,13 +71,8 @@ if "logged_in" not in st.session_state:
 # 🔄 Navigasi Aman
 # ======================
 def go_to(page_name: str):
-    """Navigasi tanpa klik dua kali."""
+    """Navigasi aman tanpa klik dua kali & tanpa halaman kosong."""
     st.session_state["page"] = page_name
-    st.session_state["trigger_rerun"] = True
-    st.stop()
-
-if st.session_state.get("trigger_rerun", False):
-    st.session_state["trigger_rerun"] = False
     st.rerun()
 
 
