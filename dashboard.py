@@ -1,5 +1,5 @@
 # dashboard.py
-# -*- coding: utf-8 -*-
+# -- coding: utf-8 --
 
 import streamlit as st
 import pandas as pd
@@ -7,7 +7,6 @@ import bcrypt
 from dotenv import load_dotenv
 import os
 from datetime import datetime
-import matplotlib.pyplot as plt
 from groq import Groq
 
 # ====== 1️⃣ Load API Key (Streamlit Secrets > env) ======
@@ -19,12 +18,12 @@ else:
     api_key = os.getenv("GROQ_API_KEY")
 
 if not api_key:
-    st.error("GROQ_API_KEY tidak ditemukan. Simpan key di Streamlit Secrets atau .env.")
+    st.error("❌ GROQ_API_KEY tidak ditemukan. Simpan di Streamlit Secrets atau file .env.")
     st.stop()
 
 client = Groq(api_key=api_key)
 
-# ====== 2️⃣ File Cek + Normalisasi Kolom ======
+# ====== 2️⃣ File & Struktur Awal ======
 EXPECTED_USERS_COLS = ["Email", "Password", "Total_Budget"]
 EXPECTED_TRANSACTIONS_COLS = ["User", "Tanggal", "Kategori", "Jumlah"]
 
@@ -58,33 +57,28 @@ if not os.path.exists("users.csv"):
 if not os.path.exists("transactions.csv"):
     pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS).to_csv("transactions.csv", index=False)
 
-# Baca dan normalisasi users.csv
+# Baca & Normalisasi CSV
 try:
-    users_df = pd.read_csv("users.csv")
-    users_df = normalize_columns(users_df)
+    users_df = normalize_columns(pd.read_csv("users.csv"))
     for col in EXPECTED_USERS_COLS:
         if col not in users_df.columns:
             users_df[col] = ""
     users_df = users_df[EXPECTED_USERS_COLS]
     users_df.to_csv("users.csv", index=False)
 except Exception:
-    users_df = pd.DataFrame(columns=EXPECTED_USERS_COLS)
-    users_df.to_csv("users.csv", index=False)
+    pd.DataFrame(columns=EXPECTED_USERS_COLS).to_csv("users.csv", index=False)
 
-# Baca dan normalisasi transactions.csv
 try:
-    trans_df = pd.read_csv("transactions.csv")
-    trans_df = normalize_columns(trans_df)
+    trans_df = normalize_columns(pd.read_csv("transactions.csv"))
     for col in EXPECTED_TRANSACTIONS_COLS:
         if col not in trans_df.columns:
             trans_df[col] = ""
     trans_df = trans_df[EXPECTED_TRANSACTIONS_COLS]
     trans_df.to_csv("transactions.csv", index=False)
 except Exception:
-    trans_df = pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS)
-    trans_df.to_csv("transactions.csv", index=False)
+    pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS).to_csv("transactions.csv", index=False)
 
-# ====== 3️⃣ Utility Functions ======
+# ====== 3️⃣ Fungsi Utility ======
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -94,7 +88,7 @@ def verify_password(password: str, hashed: str) -> bool:
     except Exception:
         return False
 
-# ====== 4️⃣ Tampilan Login / Signup ======
+# ====== 4️⃣ UI Streamlit ======
 st.set_page_config(page_title="FinSmart AI", page_icon="💰")
 st.title("💰 FinSmart AI - Manajemen Keuangan Pintar")
 
@@ -103,15 +97,13 @@ menu = st.sidebar.selectbox("Navigasi", ["Login", "Sign Up", "Dashboard"])
 # ====== Sign Up ======
 if menu == "Sign Up":
     st.subheader("🆕 Buat Akun Baru")
-
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
     total_budget = st.number_input("Total Budget Awal (Rp)", step=1000, value=0)
     signup_btn = st.button("Daftar")
 
     if signup_btn:
-        users = pd.read_csv("users.csv")
-        users = normalize_columns(users)
+        users = normalize_columns(pd.read_csv("users.csv"))
         for col in EXPECTED_USERS_COLS:
             if col not in users.columns:
                 users[col] = ""
@@ -131,19 +123,12 @@ if menu == "Sign Up":
 # ====== Login ======
 elif menu == "Login":
     st.subheader("🔑 Login ke Akun")
-
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
     login_btn = st.button("Login")
 
     if login_btn:
-        users = pd.read_csv("users.csv")
-        users = normalize_columns(users)
-        for col in EXPECTED_USERS_COLS:
-            if col not in users.columns:
-                users[col] = ""
-        users = users[EXPECTED_USERS_COLS]
-
+        users = normalize_columns(pd.read_csv("users.csv"))
         if email in users["Email"].values:
             user_data = users[users["Email"] == email].iloc[0]
             if verify_password(password, user_data["Password"]):
@@ -158,14 +143,12 @@ elif menu == "Login":
 # ====== Dashboard ======
 elif menu == "Dashboard":
     if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
-        st.warning("⚠️ Silakan login terlebih dahulu.")
+        st.warning("⚠ Silakan login terlebih dahulu.")
     else:
         user = st.session_state["user"]
         st.subheader(f"📊 Dashboard - {user}")
 
-        # Load data transaksi user
-        df = pd.read_csv("transactions.csv")
-        df = normalize_columns(df)
+        df = normalize_columns(pd.read_csv("transactions.csv"))
         for col in EXPECTED_TRANSACTIONS_COLS:
             if col not in df.columns:
                 df[col] = ""
@@ -192,7 +175,7 @@ elif menu == "Dashboard":
             st.success("✅ Transaksi berhasil disimpan!")
             user_data = df[df["User"] == user]
 
-        # Tampilkan data
+        # Tampilkan data transaksi
         st.subheader("📋 Riwayat Transaksi")
         st.dataframe(user_data)
 
@@ -205,8 +188,8 @@ elif menu == "Dashboard":
             st.metric("Total Pengeluaran", f"Rp {pengeluaran:,.0f}")
             st.metric("Sisa Budget", f"Rp {sisa:,.0f}")
 
-            # ====== ✅ Analisis AI (Pakai Model Terbaru Groq) ======
-            st.subheader("🧠 Analisis Keuangan AI")
+            # ====== 🧠 Analisis AI ======
+            st.subheader("🤖 Analisis Keuangan AI")
             prompt = f"""
 Analisis keuangan user {user}:
 - Total pemasukan: {pemasukan}
@@ -220,17 +203,21 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
                 with st.spinner("AI sedang menganalisis..."):
                     try:
                         response = client.chat.completions.create(
-                            model="gemma2-9b-it",  # ✅ model aktif & disarankan
+                            model="openai/gpt-oss-20b",  # ✅ model kamu di Groq
                             messages=[
-                                {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberikan saran berdasarkan data pengguna."},
+                                {
+                                    "role": "system",
+                                    "content": "Kamu adalah asisten keuangan pribadi yang memberi saran berdasarkan data pengguna."
+                                },
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.7,
-                            max_completion_tokens=500
+                            max_completion_tokens=800,
                         )
                         hasil = response.choices[0].message.content
                         st.success("✅ Analisis Selesai")
                         st.write(hasil)
+
                     except Exception as e:
                         st.error("❌ Gagal menganalisis dengan Groq API.")
                         st.exception(e)
