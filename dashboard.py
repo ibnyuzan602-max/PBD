@@ -13,14 +13,13 @@ import bcrypt
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+from groq import Groq
 
 # ====== 1️⃣ Load API Key ======
 load_dotenv()
 api_key = os.getenv("GROQ_API_KEY")
 
-client = OpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=api_key
+client = Groq(api_key=api_key)
 )
 
 # ====== 2️⃣ File Cek ======
