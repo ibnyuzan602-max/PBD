@@ -54,7 +54,10 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
 
 # ======================
 # ⚙️ Konfigurasi Halaman
@@ -63,7 +66,7 @@ st.set_page_config(page_title="FinSmart AI", page_icon="💰")
 
 # Inisialisasi session state
 if "page" not in st.session_state:
-    st.session_state["page"] = "login"
+    st.session_state["page"] = "home"
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
@@ -75,14 +78,28 @@ def go_to(page_name: str):
     st.rerun()
 
 # ======================
+# 🏠 HALAMAN AWAL / HOME
+# ======================
+if st.session_state["page"] == "home":
+    st.title("💰 FinSmart AI")
+    st.subheader("Selamat datang di aplikasi manajemen keuangan pintar Anda!")
+    st.markdown("Kelola pemasukan, pengeluaran, dan dapatkan saran AI untuk keuangan Anda 💡")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("🔑 Login", use_container_width=True, on_click=lambda: go_to("login"))
+    with col2:
+        st.button("🆕 Daftar", use_container_width=True, on_click=lambda: go_to("signup"))
+
+# ======================
 # 🔐 HALAMAN LOGIN
 # ======================
-if st.session_state["page"] == "login":
+elif st.session_state["page"] == "login":
     st.title("🔑 Login ke FinSmart AI")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    if st.button("Masuk"):
         users = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
         if email in users["Email"].values:
             user_data = users[users["Email"] == email].iloc[0]
@@ -96,7 +113,8 @@ if st.session_state["page"] == "login":
             st.error("❌ Email tidak ditemukan.")
 
     st.info("Belum punya akun?")
-    st.button("👉 Daftar Sekarang", on_click=lambda: go_to("signup"))
+    st.button("🆕 Daftar Sekarang", on_click=lambda: go_to("signup"))
+    st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
 
 # ======================
 # 📝 HALAMAN SIGN UP
@@ -121,6 +139,8 @@ elif st.session_state["page"] == "signup":
             st.success("✅ Akun berhasil dibuat! Silakan login.")
             st.button("⬅ Kembali ke Login", on_click=lambda: go_to("login"))
 
+    st.button("⬅ Kembali ke Beranda", on_click=lambda: go_to("home"))
+
 # ======================
 # 📊 HALAMAN DASHBOARD
 # ======================
@@ -134,7 +154,7 @@ elif st.session_state["page"] == "dashboard":
     if st.button("🚪 Logout"):
         st.session_state["logged_in"] = False
         st.session_state["user"] = None
-        go_to("login")
+        go_to("home")
 
     # Load data
     df = normalize_columns(pd.read_csv("transactions.csv"))
@@ -164,7 +184,7 @@ elif st.session_state["page"] == "dashboard":
         df = pd.concat([df, new_row], ignore_index=True)
         df.to_csv("transactions.csv", index=False)
         st.success("✅ Transaksi berhasil disimpan!")
-        st.experimental_rerun()
+        st.rerun()
 
     # ===== Tampilkan data =====
     st.subheader("📋 Riwayat Transaksi")
