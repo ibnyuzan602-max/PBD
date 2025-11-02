@@ -72,7 +72,7 @@ if "logged_in" not in st.session_state:
 # ======================
 def go_to(page_name: str):
     st.session_state["page"] = page_name
-    st.experimental_rerun()
+    st.rerun()
 
 # ======================
 # 🔐 HALAMAN LOGIN
