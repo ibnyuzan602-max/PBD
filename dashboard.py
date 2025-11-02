@@ -218,15 +218,15 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
             if st.button("Analisis Sekarang"):
                 with st.spinner("AI sedang menganalisis..."):
                     try:
-                        # Gunakan model yang tersedia dan stabil
+                        # ✅ Ganti model ke yang masih aktif
                         response = client.chat.completions.create(
-                            model="llama3-70b-8192",
+                            model="openai/gpt-oss-20b",
                             messages=[
                                 {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberikan saran berdasarkan data pengguna."},
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.7,
-                            max_tokens=500
+                            max_completion_tokens=800,
                         )
                         hasil = response.choices[0].message.content
                         st.success("✅ Analisis Selesai")
