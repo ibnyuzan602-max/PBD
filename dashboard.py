@@ -25,18 +25,89 @@ if not api_key:
 
 client = Groq(api_key=api_key)
 
-# ====== 2️⃣ File Cek ======
+# ====== 2️⃣ File Cek + Normalisasi Kolom ======
+EXPECTED_USERS_COLS = ["Email", "Password", "Total_Budget"]
+EXPECTED_TRANSACTIONS_COLS = ["User", "Tanggal", "Kategori", "Jumlah"]
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalisasi nama kolom: trim, ganti spasi->underscore, ubah huruf sesuai pola
+    Lalu sesuaikan beberapa variasi umum seperti 'Total Budget' -> 'Total_Budget'.
+    """
+    cols = []
+    for c in df.columns:
+        c2 = c.strip()
+        # ganti spasi ke underscore, hapus double underscore
+        c2 = c2.replace(" ", "_")
+        # beberapa penyesuaian kapitalisasi: kita ingin PascalCase/Exact as expected
+        # buat variasi umum menjadi standar:
+        # contoh: totalbudget, total_budget, Total_Budget -> Total_Budget
+        low = c2.lower()
+        if low in ("totalbudget", "total_budget", "total_budget"):
+            cols.append("Total_Budget")
+        elif low in ("email",):
+            cols.append("Email")
+        elif low in ("password",):
+            cols.append("Password")
+        elif low in ("user",):
+            cols.append("User")
+        elif low in ("tanggal", "date"):
+            cols.append("Tanggal")
+        elif low in ("kategori", "category"):
+            cols.append("Kategori")
+        elif low in ("jumlah", "amount"):
+            cols.append("Jumlah")
+        else:
+            # fallback: capitalize first letter, keep underscores
+            cols.append(c2[0].upper() + c2[1:] if len(c2) > 0 else c2)
+    df.columns = cols
+    return df
+
+# Pastikan file ada; buat jika belum
 if not os.path.exists("users.csv"):
-    pd.DataFrame(columns=["Email", "Password", "Total_Budget"]).to_csv("users.csv", index=False)
+    pd.DataFrame(columns=EXPECTED_USERS_COLS).to_csv("users.csv", index=False)
 if not os.path.exists("transactions.csv"):
-    pd.DataFrame(columns=["User", "Tanggal", "Kategori", "Jumlah"]).to_csv("transactions.csv", index=False)
+    pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS).to_csv("transactions.csv", index=False)
+
+# Baca dan normalisasi users.csv
+try:
+    users_df = pd.read_csv("users.csv")
+    users_df = normalize_columns(users_df)
+    # pastikan kolom ada sesuai expected (jika kolom hilang, tambahkan)
+    for col in EXPECTED_USERS_COLS:
+        if col not in users_df.columns:
+            users_df[col] = ""
+    users_df = users_df[EXPECTED_USERS_COLS]
+    users_df.to_csv("users.csv", index=False)
+except Exception:
+    # jika csv korup atau kosong, buat ulang
+    users_df = pd.DataFrame(columns=EXPECTED_USERS_COLS)
+    users_df.to_csv("users.csv", index=False)
+
+# Baca dan normalisasi transactions.csv
+try:
+    trans_df = pd.read_csv("transactions.csv")
+    trans_df = normalize_columns(trans_df)
+    for col in EXPECTED_TRANSACTIONS_COLS:
+        if col not in trans_df.columns:
+            trans_df[col] = ""
+    trans_df = trans_df[EXPECTED_TRANSACTIONS_COLS]
+    trans_df.to_csv("transactions.csv", index=False)
+except Exception:
+    trans_df = pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS)
+    trans_df.to_csv("transactions.csv", index=False)
 
 # ====== 3️⃣ Fungsi Utility ======
-def hash_password(Password: str) -> str:
-    return bcrypt.hashpw(Password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+def hash_password(password: str) -> str:
+    """Hash password dengan bcrypt dan return decoded string."""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-def verify_password(Password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(Password.encode('utf-8'), hashed.encode('utf-8'))
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify password plaintext terhadap hashed bcrypt."""
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
 
 # ====== 4️⃣ Tampilan Login / Signup ======
 st.set_page_config(page_title="FinSmart AI", page_icon="💰")
@@ -55,11 +126,20 @@ if menu == "Sign Up":
 
     if signup_btn:
         users = pd.read_csv("users.csv")
-        if email in users["Email"].values:
+        users = normalize_columns(users)
+        # pastikan kolom tetap sesuai
+        for col in EXPECTED_USERS_COLS:
+            if col not in users.columns:
+                users[col] = ""
+        users = users[EXPECTED_USERS_COLS]
+
+        if not email or not password:
+            st.warning("❗ Mohon isi email dan password.")
+        elif email in users["Email"].values:
             st.warning("❗ Email sudah terdaftar.")
         else:
-            hashed_pw = hash_password(Password)
-            new_user = pd.DataFrame([[Email, hashed_pw, Total_Budget]], columns=["Email", "Password", "Total_Budget"])
+            hashed_pw = hash_password(password)
+            new_user = pd.DataFrame([[email, hashed_pw, total_budget]], columns=EXPECTED_USERS_COLS)
             users = pd.concat([users, new_user], ignore_index=True)
             users.to_csv("users.csv", index=False)
             st.success("✅ Akun berhasil dibuat! Silakan login.")
@@ -74,6 +154,13 @@ elif menu == "Login":
 
     if login_btn:
         users = pd.read_csv("users.csv")
+        users = normalize_columns(users)
+        # pastikan kolom ada
+        for col in EXPECTED_USERS_COLS:
+            if col not in users.columns:
+                users[col] = ""
+        users = users[EXPECTED_USERS_COLS]
+
         if email in users["Email"].values:
             user_data = users[users["Email"] == email].iloc[0]
             if verify_password(password, user_data["Password"]):
@@ -95,6 +182,12 @@ elif menu == "Dashboard":
 
         # ====== Load Data Transaksi User ======
         df = pd.read_csv("transactions.csv")
+        df = normalize_columns(df)
+        for col in EXPECTED_TRANSACTIONS_COLS:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[EXPECTED_TRANSACTIONS_COLS]
+
         user_data = df[df["User"] == user]
 
         # ====== Form Tambah Transaksi ======
@@ -151,6 +244,12 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
                         messages=[{"role": "user", "content": prompt}]
                     )
                     st.success("✅ Analisis Selesai")
-                    st.write(response.choices[0].message.content)
+                    # tampilkan isi jawaban
+                    # (jika struktur response berbeda, adjust access path)
+                    try:
+                        st.write(response.choices[0].message.content)
+                    except Exception:
+                        st.write(response)
+
         else:
             st.info("Belum ada transaksi. Tambahkan data untuk analisis AI.")
