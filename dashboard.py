@@ -27,16 +27,16 @@ client = Groq(api_key=api_key)
 
 # ====== 2️⃣ File Cek ======
 if not os.path.exists("users.csv"):
-    pd.DataFrame(columns=["email", "password", "total_budget"]).to_csv("users.csv", index=False)
+    pd.DataFrame(columns=["Email", "Password", "Total_Budget"]).to_csv("users.csv", index=False)
 if not os.path.exists("transactions.csv"):
-    pd.DataFrame(columns=["user", "tanggal", "kategori", "jumlah"]).to_csv("transactions.csv", index=False)
+    pd.DataFrame(columns=["User", "Tanggal", "Kategori", "Jumlah"]).to_csv("transactions.csv", index=False)
 
 # ====== 3️⃣ Fungsi Utility ======
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+def hash_password(Password: str) -> str:
+    return bcrypt.hashpw(Password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+def verify_password(Password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(Password.encode('utf-8'), hashed.encode('utf-8'))
 
 # ====== 4️⃣ Tampilan Login / Signup ======
 st.set_page_config(page_title="FinSmart AI", page_icon="💰")
@@ -55,11 +55,11 @@ if menu == "Sign Up":
 
     if signup_btn:
         users = pd.read_csv("users.csv")
-        if email in users["email"].values:
+        if email in users["Email"].values:
             st.warning("❗ Email sudah terdaftar.")
         else:
-            hashed_pw = hash_password(password)
-            new_user = pd.DataFrame([[email, hashed_pw, total_budget]], columns=["email", "password", "total_budget"])
+            hashed_pw = hash_password(Password)
+            new_user = pd.DataFrame([[Email, hashed_pw, Total_Budget]], columns=["Email", "Password", "Total_Budget"])
             users = pd.concat([users, new_user], ignore_index=True)
             users.to_csv("users.csv", index=False)
             st.success("✅ Akun berhasil dibuat! Silakan login.")
@@ -74,9 +74,9 @@ elif menu == "Login":
 
     if login_btn:
         users = pd.read_csv("users.csv")
-        if email in users["email"].values:
-            user_data = users[users["email"] == email].iloc[0]
-            if verify_password(password, user_data["password"]):
+        if email in users["Email"].values:
+            user_data = users[users["Email"] == email].iloc[0]
+            if verify_password(password, user_data["Password"]):
                 st.session_state["logged_in"] = True
                 st.session_state["user"] = email
                 st.success(f"✅ Selamat datang, {email}!")
@@ -95,7 +95,7 @@ elif menu == "Dashboard":
 
         # ====== Load Data Transaksi User ======
         df = pd.read_csv("transactions.csv")
-        user_data = df[df["user"] == user]
+        user_data = df[df["User"] == user]
 
         # ====== Form Tambah Transaksi ======
         st.subheader("🧾 Tambah Transaksi Baru")
@@ -107,25 +107,25 @@ elif menu == "Dashboard":
 
         if submit:
             new_row = pd.DataFrame([{
-                "user": user,
-                "tanggal": tanggal,
-                "kategori": kategori,
-                "jumlah": jumlah
+                "User": user,
+                "Tanggal": tanggal,
+                "Kategori": kategori,
+                "Jumlah": jumlah
             }])
             df = pd.concat([df, new_row], ignore_index=True)
             df.to_csv("transactions.csv", index=False)
             st.success("✅ Transaksi berhasil disimpan!")
 
             # update user_data agar tampilan langsung berubah
-            user_data = df[df["user"] == user]
+            user_data = df[df["User"] == user]
 
         # ====== Tampilkan Data User ======
         st.subheader("📋 Riwayat Transaksi")
         st.dataframe(user_data)
 
         if not user_data.empty:
-            pengeluaran = user_data[user_data["jumlah"] > 0]["jumlah"].sum()
-            pemasukan = abs(user_data[user_data["jumlah"] < 0]["jumlah"].sum())
+            pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
+            pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
             sisa = pemasukan - pengeluaran
 
             st.metric("Total Pemasukan", f"Rp {pemasukan:,.0f}")
