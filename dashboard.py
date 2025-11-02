@@ -7,8 +7,8 @@ import bcrypt
 from dotenv import load_dotenv
 import os
 from datetime import datetime
-from groq import Groq
 import matplotlib.pyplot as plt
+from groq import Groq
 
 # ====== 1️⃣ Load API Key (Streamlit Secrets > env) ======
 api_key = None
@@ -58,24 +58,31 @@ if not os.path.exists("users.csv"):
 if not os.path.exists("transactions.csv"):
     pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS).to_csv("transactions.csv", index=False)
 
-# Load + normalisasi CSV
-def load_or_create_csv(filename, expected_cols):
-    try:
-        df = pd.read_csv(filename)
-        df = normalize_columns(df)
-        for col in expected_cols:
-            if col not in df.columns:
-                df[col] = ""
-        df = df[expected_cols]
-        df.to_csv(filename, index=False)
-        return df
-    except Exception:
-        df = pd.DataFrame(columns=expected_cols)
-        df.to_csv(filename, index=False)
-        return df
+# Baca dan normalisasi users.csv
+try:
+    users_df = pd.read_csv("users.csv")
+    users_df = normalize_columns(users_df)
+    for col in EXPECTED_USERS_COLS:
+        if col not in users_df.columns:
+            users_df[col] = ""
+    users_df = users_df[EXPECTED_USERS_COLS]
+    users_df.to_csv("users.csv", index=False)
+except Exception:
+    users_df = pd.DataFrame(columns=EXPECTED_USERS_COLS)
+    users_df.to_csv("users.csv", index=False)
 
-users_df = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
-trans_df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
+# Baca dan normalisasi transactions.csv
+try:
+    trans_df = pd.read_csv("transactions.csv")
+    trans_df = normalize_columns(trans_df)
+    for col in EXPECTED_TRANSACTIONS_COLS:
+        if col not in trans_df.columns:
+            trans_df[col] = ""
+    trans_df = trans_df[EXPECTED_TRANSACTIONS_COLS]
+    trans_df.to_csv("transactions.csv", index=False)
+except Exception:
+    trans_df = pd.DataFrame(columns=EXPECTED_TRANSACTIONS_COLS)
+    trans_df.to_csv("transactions.csv", index=False)
 
 # ====== 3️⃣ Utility Functions ======
 def hash_password(password: str) -> str:
@@ -96,13 +103,20 @@ menu = st.sidebar.selectbox("Navigasi", ["Login", "Sign Up", "Dashboard"])
 # ====== Sign Up ======
 if menu == "Sign Up":
     st.subheader("🆕 Buat Akun Baru")
+
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
     total_budget = st.number_input("Total Budget Awal (Rp)", step=1000, value=0)
     signup_btn = st.button("Daftar")
 
     if signup_btn:
-        users = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
+        users = pd.read_csv("users.csv")
+        users = normalize_columns(users)
+        for col in EXPECTED_USERS_COLS:
+            if col not in users.columns:
+                users[col] = ""
+        users = users[EXPECTED_USERS_COLS]
+
         if not email or not password:
             st.warning("❗ Mohon isi email dan password.")
         elif email in users["Email"].values:
@@ -117,12 +131,19 @@ if menu == "Sign Up":
 # ====== Login ======
 elif menu == "Login":
     st.subheader("🔑 Login ke Akun")
+
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
     login_btn = st.button("Login")
 
     if login_btn:
-        users = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
+        users = pd.read_csv("users.csv")
+        users = normalize_columns(users)
+        for col in EXPECTED_USERS_COLS:
+            if col not in users.columns:
+                users[col] = ""
+        users = users[EXPECTED_USERS_COLS]
+
         if email in users["Email"].values:
             user_data = users[users["Email"] == email].iloc[0]
             if verify_password(password, user_data["Password"]):
@@ -143,7 +164,12 @@ elif menu == "Dashboard":
         st.subheader(f"📊 Dashboard - {user}")
 
         # Load data transaksi user
-        df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
+        df = pd.read_csv("transactions.csv")
+        df = normalize_columns(df)
+        for col in EXPECTED_TRANSACTIONS_COLS:
+            if col not in df.columns:
+                df[col] = ""
+        df = df[EXPECTED_TRANSACTIONS_COLS]
         user_data = df[df["User"] == user]
 
         # Tambah transaksi
@@ -170,12 +196,7 @@ elif menu == "Dashboard":
         st.subheader("📋 Riwayat Transaksi")
         st.dataframe(user_data)
 
-        # Tombol ekspor
         if not user_data.empty:
-            csv = user_data.to_csv(index=False).encode('utf-8')
-            st.download_button("📤 Ekspor ke CSV", csv, file_name="riwayat_transaksi.csv", mime="text/csv")
-
-            # Hitung data keuangan
             pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
             pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
             sisa = pemasukan - pengeluaran
@@ -184,57 +205,28 @@ elif menu == "Dashboard":
             st.metric("Total Pengeluaran", f"Rp {pengeluaran:,.0f}")
             st.metric("Sisa Budget", f"Rp {sisa:,.0f}")
 
-            # Ambil total budget user
-            total_budget = users_df.loc[users_df["Email"] == user, "Total_Budget"].iloc[0]
-            if isinstance(total_budget, str) and total_budget.strip() == "":
-                total_budget = 0
-            try:
-                total_budget = float(total_budget)
-            except:
-                total_budget = 0
-
-            # 🔔 Notifikasi overspending
-            if pengeluaran > 0.8 * total_budget and total_budget > 0:
-                st.warning("⚠️ Pengeluaran Anda sudah melebihi 80% dari total budget!")
-
-            # ====== 📊 Grafik ======
-            st.subheader("📈 Grafik Pengeluaran per Kategori")
-            pengeluaran_kategori = user_data[user_data["Jumlah"] > 0].groupby("Kategori")["Jumlah"].sum()
-            if not pengeluaran_kategori.empty:
-                fig, ax = plt.subplots()
-                pengeluaran_kategori.plot(kind="bar", ax=ax)
-                ax.set_ylabel("Jumlah (Rp)")
-                ax.set_xlabel("Kategori")
-                ax.set_title("Pengeluaran per Kategori")
-                st.pyplot(fig)
-            else:
-                st.info("Belum ada data pengeluaran untuk ditampilkan dalam grafik.")
-
-            # ====== 🧠 Analisis AI ======
+            # ====== ✅ Analisis AI (Pakai Model Terbaru Groq) ======
             st.subheader("🧠 Analisis Keuangan AI")
-            kategori_terbanyak = (
-                pengeluaran_kategori.idxmax() if not pengeluaran_kategori.empty else "Belum ada"
-            )
             prompt = f"""
 Analisis keuangan user {user}:
 - Total pemasukan: {pemasukan}
 - Total pengeluaran: {pengeluaran}
 - Sisa budget: {sisa}
-- Kategori pengeluaran terbesar: {kategori_terbanyak}
-Berikan 3 saran keuangan pribadi dan langkah konkret untuk minggu depan.
+
+Berikan 3 saran keuangan pribadi untuk minggu depan.
 """
 
-            if st.button("Analisis Sekarang 🧩"):
+            if st.button("Analisis Sekarang"):
                 with st.spinner("AI sedang menganalisis..."):
                     try:
                         response = client.chat.completions.create(
-                            model="llama3-70b-8192",
+                            model="gemma2-9b-it",  # ✅ model aktif & disarankan
                             messages=[
-                                {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberi saran cerdas dan praktis."},
+                                {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberikan saran berdasarkan data pengguna."},
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.7,
-                            max_tokens=500
+                            max_completion_tokens=500
                         )
                         hasil = response.choices[0].message.content
                         st.success("✅ Analisis Selesai")
