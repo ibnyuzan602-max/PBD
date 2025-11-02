@@ -142,6 +142,12 @@ elif menu == "Dashboard":
         user = st.session_state["user"]
         st.subheader(f"📊 Dashboard - {user}")
 
+        # Tombol Logout
+        if st.button("🚪 Logout"):
+            st.session_state["logged_in"] = False
+            st.session_state["user"] = None
+            st.rerun()
+
         # Muat ulang CSV
         df = normalize_columns(pd.read_csv("transactions.csv"))
         users_df = normalize_columns(pd.read_csv("users.csv"))
@@ -160,14 +166,11 @@ elif menu == "Dashboard":
         # Filter data user
         user_data = df[df["User"] == user]
 
-        # Cegah error IndexError
+        # Ambil total_budget dengan aman
         user_budget_row = users_df.loc[users_df["Email"] == user]
-        if not user_budget_row.empty:
-            total_budget = user_budget_row["Total_Budget"].iloc[0]
-        else:
-            total_budget = 0
+        total_budget = user_budget_row["Total_Budget"].iloc[0] if not user_budget_row.empty else 0
 
-        # Tambah transaksi
+        # ===== Tambah transaksi =====
         st.subheader("🧾 Tambah Transaksi Baru")
         with st.form("tambah_transaksi", clear_on_submit=True):
             tanggal = st.date_input("Tanggal", datetime.now())
@@ -187,21 +190,44 @@ elif menu == "Dashboard":
             st.success("✅ Transaksi berhasil disimpan!")
             user_data = df[df["User"] == user]
 
-        # Tampilkan data transaksi
+        # ===== Tampilkan data =====
         st.subheader("📋 Riwayat Transaksi")
         st.dataframe(user_data)
 
         if not user_data.empty:
+            # Hitung ringkasan
             pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
             pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
             sisa = pemasukan - pengeluaran
 
-            st.metric("Total Pemasukan", f"Rp {pemasukan:,.0f}")
-            st.metric("Total Pengeluaran", f"Rp {pengeluaran:,.0f}")
-            st.metric("Sisa Budget", f"Rp {sisa:,.0f}")
-            st.metric("Total Budget Awal", f"Rp {total_budget:,.0f}")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Pemasukan", f"Rp {pemasukan:,.0f}")
+            col2.metric("Pengeluaran", f"Rp {pengeluaran:,.0f}")
+            col3.metric("Sisa", f"Rp {sisa:,.0f}")
+            col4.metric("Budget Awal", f"Rp {total_budget:,.0f}")
 
-            # ====== 🧠 Analisis Keuangan AI ======
+            # ===== Grafik Pengeluaran =====
+            st.subheader("📉 Visualisasi Transaksi")
+
+            # Pie Chart
+            pengeluaran_per_kategori = user_data[user_data["Jumlah"] > 0].groupby("Kategori")["Jumlah"].sum()
+            if not pengeluaran_per_kategori.empty:
+                fig1, ax1 = plt.subplots()
+                ax1.pie(pengeluaran_per_kategori, labels=pengeluaran_per_kategori.index, autopct="%1.1f%%")
+                ax1.set_title("Distribusi Pengeluaran per Kategori")
+                st.pyplot(fig1)
+
+            # Bar Chart
+            st.write("📊 Total Transaksi per Kategori")
+            total_per_kategori = user_data.groupby("Kategori")["Jumlah"].sum()
+            fig2, ax2 = plt.subplots()
+            ax2.bar(total_per_kategori.index, total_per_kategori.values)
+            ax2.set_ylabel("Jumlah (Rp)")
+            ax2.set_xlabel("Kategori")
+            ax2.set_title("Total Transaksi per Kategori")
+            st.pyplot(fig2)
+
+            # ===== Analisis AI =====
             st.subheader("🤖 Analisis Keuangan AI")
             prompt = f"""
 Analisis keuangan user {user}:
@@ -217,7 +243,7 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
                 with st.spinner("AI sedang menganalisis..."):
                     try:
                         response = client.chat.completions.create(
-                            model="openai/gpt-oss-20b",  # ✅ model aktif
+                            model="openai/gpt-oss-20b",
                             messages=[
                                 {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberi saran berdasarkan data pengguna."},
                                 {"role": "user", "content": prompt}
@@ -228,9 +254,8 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
                         hasil = response.choices[0].message.content
                         st.success("✅ Analisis Selesai")
                         st.write(hasil)
-
                     except Exception as e:
                         st.error("❌ Gagal menganalisis dengan Groq API.")
                         st.exception(e)
         else:
-            st.info("Belum ada transaksi. Tambahkan data untuk analisis AI.")
+            st.info("Belum ada transaksi. Tambahkan data untuk melihat analisis & grafik.")
