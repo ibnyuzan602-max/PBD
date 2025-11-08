@@ -7,6 +7,3 @@ groq
 requests
 matplotlib
 altair
-
-
-
