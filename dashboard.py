@@ -10,6 +10,65 @@ from datetime import datetime
 from groq import Groq
 import matplotlib.pyplot as plt
 import altair as alt
+from PIL import Image
+import io
+import requests
+
+# ======================
+# 🖼️ Konfigurasi Logo & Favicon
+# ======================
+logo_path = "Logo.jpg"  # ganti sesuai nama file logomu
+logo_url = None  # jika pakai URL gambar, isi di sini
+
+def load_image_bytes(path=None, url=None):
+    """Load gambar dari path lokal atau URL"""
+    if path and os.path.exists(path):
+        try:
+            with open(path, "rb") as f:
+                return f.read()
+        except Exception:
+            pass
+    if url:
+        try:
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                return resp.content
+        except Exception:
+            pass
+    return None
+
+img_bytes = load_image_bytes(path=logo_path, url=logo_url)
+
+if img_bytes:
+    try:
+        img = Image.open(io.BytesIO(img_bytes))
+        st.set_page_config(page_title="FinSmart AI", page_icon=img, layout="wide")
+    except Exception:
+        st.set_page_config(page_title="FinSmart AI", page_icon="💰", layout="wide")
+else:
+    st.set_page_config(page_title="FinSmart AI", page_icon="💰", layout="wide")
+
+def header_with_logo(image_bytes=None, width=120, title="FinSmart AI", subtitle="Manajemen Keuangan Pintar"):
+    cols = st.columns([0.15, 0.85])
+    if image_bytes:
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            with cols[0]:
+                st.image(img, width=width)
+            with cols[1]:
+                st.markdown(f"## {title}")
+                st.markdown(f"_{subtitle}_")
+        except Exception:
+            with cols[1]:
+                st.markdown(f"## {title}")
+                st.markdown(f"_{subtitle}_")
+    else:
+        with cols[1]:
+            st.markdown(f"## {title}")
+            st.markdown(f"_{subtitle}_")
+
+# tampilkan header logo di semua halaman
+header_with_logo(img_bytes)
 
 # ======================
 # 🔑 Load API Key
@@ -54,12 +113,8 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 # ======================
-# ⚙️ Konfigurasi Halaman
+# ⚙️ Inisialisasi Session
 # ======================
-st.set_page_config(page_title="FinSmart AI", page_icon="💰")
-st.set_option("client.showErrorDetails", True)
-
-# Inisialisasi session state
 if "page" not in st.session_state:
     st.session_state["page"] = "home"
 if "logged_in" not in st.session_state:
@@ -69,7 +124,6 @@ if "logged_in" not in st.session_state:
 # 🔄 Navigasi Aman
 # ======================
 def go_to(page_name: str):
-    """Navigasi aman tanpa klik dua kali & tanpa halaman kosong."""
     st.session_state["page"] = page_name
     st.rerun()
 
@@ -152,12 +206,10 @@ elif st.session_state["page"] == "dashboard":
         st.session_state["user"] = None
         go_to("home")
 
-    # Load data
     df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
     users_df = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
     user_data = df[df["User"] == user]
 
-    # Pastikan total_budget numerik
     if user in users_df["Email"].values:
         try:
             total_budget = float(users_df.loc[users_df["Email"] == user, "Total_Budget"].iloc[0])
@@ -166,7 +218,6 @@ elif st.session_state["page"] == "dashboard":
     else:
         total_budget = 0
 
-    # ===== Tambah transaksi =====
     st.subheader("🧾 Tambah Transaksi Baru")
     with st.form("tambah_transaksi", clear_on_submit=True):
         tanggal = st.date_input("Tanggal", datetime.now())
@@ -186,17 +237,14 @@ elif st.session_state["page"] == "dashboard":
         st.success("✅ Transaksi berhasil disimpan!")
         st.rerun()
 
-    # ===== Tampilkan data =====
     st.subheader("📋 Riwayat Transaksi")
     st.dataframe(user_data)
 
     if not user_data.empty:
-        # Ringkasan
         pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
         pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
         sisa = pemasukan - pengeluaran
 
-        # Safe metrics
         def safe_number(val):
             try:
                 return float(val)
@@ -209,7 +257,6 @@ elif st.session_state["page"] == "dashboard":
         col3.metric("Sisa", f"Rp {safe_number(sisa):,.0f}")
         col4.metric("Budget Awal", f"Rp {safe_number(total_budget):,.0f}")
 
-        # ===== Grafik Time Series =====
         st.subheader("📆 Tren Transaksi dari Waktu ke Waktu")
         user_data["Tanggal"] = pd.to_datetime(user_data["Tanggal"], errors="coerce")
         daily_summary = user_data.groupby("Tanggal")["Jumlah"].sum().reset_index()
@@ -223,7 +270,6 @@ elif st.session_state["page"] == "dashboard":
         )
         st.altair_chart(line_chart, use_container_width=True)
 
-        # ===== Pie Chart =====
         st.subheader("📉 Distribusi Pengeluaran per Kategori")
         pengeluaran_per_kategori = user_data[user_data["Jumlah"] > 0].groupby("Kategori")["Jumlah"].sum()
         if not pengeluaran_per_kategori.empty:
@@ -231,7 +277,6 @@ elif st.session_state["page"] == "dashboard":
             ax.pie(pengeluaran_per_kategori, labels=pengeluaran_per_kategori.index, autopct="%1.1f%%")
             st.pyplot(fig)
 
-        # ===== Analisis AI =====
         st.subheader("🤖 Analisis Keuangan AI")
         prompt = f"""
 Analisis keuangan user {user}:
@@ -248,7 +293,7 @@ Berikan 3 saran keuangan pribadi untuk minggu depan.
                     response = client.chat.completions.create(
                         model="openai/gpt-oss-20b",
                         messages=[
-                            {"role": "system", "content": "Kamu adalah asisten keuangan pribadi yang memberi saran berdasarkan data pengguna."},
+                            {"role": "system", "content": "Kamu adalah asisten keuangan pribadi."},
                             {"role": "user", "content": prompt}
                         ],
                         temperature=0.7,
