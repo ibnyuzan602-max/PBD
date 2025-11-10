@@ -131,7 +131,6 @@ def go_to(page_name: str):
 # 🏠 HALAMAN HOME
 # ======================
 if st.session_state["page"] == "home":
-    st.markdown("## 💰 **FinSmart AI**")
     st.markdown("### Selamat datang di aplikasi manajemen keuangan pintar Anda! 💡")
     st.write("Kelola pemasukan, pengeluaran, dan dapatkan saran AI keuangan pribadi Anda 🔑")
 
