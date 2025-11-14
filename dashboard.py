@@ -42,13 +42,13 @@ img_bytes = load_image_bytes(path=logo_path, url=logo_url)
 if img_bytes:
     try:
         img = Image.open(io.BytesIO(img_bytes))
-        st.set_page_config(page_title="FinSmart AI", page_icon=img, layout="wide")
+        st.set_page_config(page_title="FindMe AI", page_icon=img, layout="wide")
     except Exception:
-        st.set_page_config(page_title="FinSmart AI", page_icon="💰", layout="wide")
+        st.set_page_config(page_title="FindMe AI", page_icon="💰", layout="wide")
 else:
-    st.set_page_config(page_title="FinSmart AI", page_icon="💰", layout="wide")
+    st.set_page_config(page_title="FindMe AI", page_icon="💰", layout="wide")
 
-def header_with_logo(image_bytes=None, width=120, title="FinSmart AI", subtitle="Manajemen Keuangan Pintar"):
+def header_with_logo(image_bytes=None, width=120, title="FindMe AI", subtitle="Manajemen Keuangan Pintar"):
     cols = st.columns([0.15, 0.85])
     if image_bytes:
         try:
