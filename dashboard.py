@@ -121,11 +121,8 @@ def load_or_create_google_sheet(sheet_name, expected_cols):
 def save_google_sheet(df, sheet_name):
     ws = sheet.worksheet(sheet_name)
 
-    # Convert datetime to string to avoid JSON serialization error
-    df_converted = df.copy()
-    for col in df_converted.columns:
-        if str(df_converted[col].dtype) == "datetime64[ns]":
-            df_converted[col] = df_converted[col].astype(str)
+    # Convert seluruh dataframe menjadi string aman untuk Google Sheets
+    df_converted = df.copy().astype(str)
 
     ws.clear()
     ws.update([df_converted.columns.values.tolist()] + df_converted.values.tolist())
