@@ -1,4 +1,4 @@
-# dashboard.py (updated with persistent storage)
+# dashboard.py (FINAL with Google Sheets Integration)
 
 import streamlit as st
 import pandas as pd
@@ -12,12 +12,6 @@ import altair as alt
 from PIL import Image
 import io
 import requests
-
-# ======================
-# 📁 Persistent Storage Path
-# ======================
-DATA_PATH = ".streamlit/storage"
-os.makedirs(DATA_PATH, exist_ok=True)
 
 # ======================
 # 🖼️ Konfigurasi Logo & Favicon
@@ -51,7 +45,6 @@ if img_bytes:
         st.set_page_config(page_title="FindMe AI", page_icon="💰", layout="wide")
 else:
     st.set_page_config(page_title="FindMe AI", page_icon="💰", layout="wide")
-
 
 def header_with_logo(image_bytes=None, width=120, title="FindMe AI", subtitle="Manajemen Keuangan Pintar"):
     cols = st.columns([0.15, 0.85])
@@ -91,35 +84,40 @@ if not api_key:
 client = Groq(api_key=api_key)
 
 # ======================
-# 📁 CSV Functions
+# 📁 GOOGLE SHEETS DATABASE
 # ======================
+from google.oauth2.service_account import Credentials
+import gspread
+
 EXPECTED_USERS_COLS = ["Email", "Password", "Total_Budget"]
 EXPECTED_TRANSACTIONS_COLS = ["User", "Tanggal", "Kategori", "Jumlah"]
 
-def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [c.strip().replace(" ", "_").capitalize() for c in df.columns]
-    return df
+SHEET_NAME = "FindMeAI_DB"
 
-def load_or_create_csv(filename, expected_cols):
-    full_path = os.path.join(DATA_PATH, filename)
+credentials = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
+gc = gspread.authorize(credentials)
+sheet = gc.open(SHEET_NAME)
 
-    if not os.path.exists(full_path):
-        pd.DataFrame(columns=expected_cols).to_csv(full_path, index=False)
+def load_or_create_google_sheet(sheet_name, expected_cols):
+    try:
+        ws = sheet.worksheet(sheet_name)
+        df = pd.DataFrame(ws.get_all_records())
+        if df.empty:
+            df = pd.DataFrame(columns=expected_cols)
+            ws.update([expected_cols])
+        return df
+    except:
+        ws = sheet.add_worksheet(title=sheet_name, rows=1000, cols=len(expected_cols))
+        ws.update([expected_cols])
+        return pd.DataFrame(columns=expected_cols)
 
-    df = pd.read_csv(full_path)
-    df = normalize_columns(df)
-
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = ""
-
-    df.to_csv(full_path, index=False)
-
-    return df[expected_cols]
-
-def save_csv(df, filename):
-    df.to_csv(os.path.join(DATA_PATH, filename), index=False)
-
+def save_google_sheet(df, sheet_name):
+    ws = sheet.worksheet(sheet_name)
+    ws.clear()
+    ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -135,9 +133,6 @@ if "page" not in st.session_state:
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# ======================
-# Navigation
-# ======================
 def go_to(page_name: str):
     st.session_state["page"] = page_name
     st.rerun()
@@ -164,7 +159,7 @@ elif st.session_state["page"] == "login":
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        users = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
+        users = load_or_create_google_sheet("Users", EXPECTED_USERS_COLS)
         if email in users["Email"].values:
             user_data = users[users["Email"] == email].iloc[0]
             if verify_password(password, user_data["Password"]):
@@ -190,7 +185,7 @@ elif st.session_state["page"] == "signup":
     total_budget = st.number_input("Total Budget Awal (Rp)", step=1000, value=0)
 
     if st.button("Daftar"):
-        users = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
+        users = load_or_create_google_sheet("Users", EXPECTED_USERS_COLS)
         if not email or not password:
             st.warning("❗ Mohon isi email dan password.")
         elif email in users["Email"].values:
@@ -199,7 +194,7 @@ elif st.session_state["page"] == "signup":
             hashed_pw = hash_password(password)
             new_user = pd.DataFrame([[email, hashed_pw, total_budget]], columns=EXPECTED_USERS_COLS)
             users = pd.concat([users, new_user], ignore_index=True)
-            save_csv(users, "users.csv")
+            save_google_sheet(users, "Users")
             st.success("✅ Akun berhasil dibuat! Silakan login.")
 
     st.button("⬅ Kembali", on_click=lambda: go_to("home"))
@@ -219,8 +214,8 @@ elif st.session_state["page"] == "dashboard":
         st.session_state["user"] = None
         go_to("home")
 
-    df = load_or_create_csv("transactions.csv", EXPECTED_TRANSACTIONS_COLS)
-    users_df = load_or_create_csv("users.csv", EXPECTED_USERS_COLS)
+    df = load_or_create_google_sheet("Transactions", EXPECTED_TRANSACTIONS_COLS)
+    users_df = load_or_create_google_sheet("Users", EXPECTED_USERS_COLS)
     user_data = df[df["User"] == user]
 
     try:
@@ -238,7 +233,7 @@ elif st.session_state["page"] == "dashboard":
     if submit:
         new_row = pd.DataFrame([{ "User": user, "Tanggal": tanggal, "Kategori": kategori, "Jumlah": jumlah }])
         df = pd.concat([df, new_row], ignore_index=True)
-        save_csv(df, "transactions.csv")
+        save_google_sheet(df, "Transactions")
         st.success("✅ Transaksi disimpan!")
         st.rerun()
 
@@ -271,7 +266,6 @@ elif st.session_state["page"] == "dashboard":
             y="Jumlah:Q",
             tooltip=["Tanggal", "Jumlah"]
         ).properties(width=700, height=400)
-
         st.altair_chart(chart, use_container_width=True)
 
         st.subheader("📉 Distribusi Pengeluaran")
@@ -289,7 +283,6 @@ Analisis keuangan user {user}:
 - Total pengeluaran: {pengeluaran}
 - Sisa budget: {sisa}
 - Total budget awal: {total_budget}
-
 Berikan 3 saran keuangan.
 """
 
