@@ -1,4 +1,4 @@
-# dashboard.py (FINAL with Google Sheets Integration)
+# dashboard.py (FINAL fixed Google Sheets gspread by key)
 
 import streamlit as st
 import pandas as pd
@@ -56,7 +56,7 @@ def header_with_logo(image_bytes=None, width=120, title="FindMe AI", subtitle="M
             with cols[1]:
                 st.markdown(f"## {title}")
                 st.markdown(f"_{subtitle}_")
-        except Exception:
+        except:
             with cols[1]:
                 st.markdown(f"## {title}")
                 st.markdown(f"_{subtitle}_")
@@ -92,14 +92,18 @@ import gspread
 EXPECTED_USERS_COLS = ["Email", "Password", "Total_Budget"]
 EXPECTED_TRANSACTIONS_COLS = ["User", "Tanggal", "Kategori", "Jumlah"]
 
-SHEET_NAME = "FindMeAI_DB"
+SPREADSHEET_ID = st.secrets["google_sheets"]["spreadsheet_id"]
 
 credentials = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
-    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    scopes=[
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 )
+
 gc = gspread.authorize(credentials)
-sheet = gc.open(SHEET_NAME)
+sheet = gc.open_by_key(SPREADSHEET_ID)
 
 def load_or_create_google_sheet(sheet_name, expected_cols):
     try:
@@ -115,9 +119,9 @@ def load_or_create_google_sheet(sheet_name, expected_cols):
         return pd.DataFrame(columns=expected_cols)
 
 def save_google_sheet(df, sheet_name):
-    ws = sheet.worksheet(sheet_name)
-    ws.clear()
-    ws.update([df.columns.values.tolist()] + df.values.tolist())
+        ws = sheet.worksheet(sheet_name)
+        ws.clear()
+        ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -219,7 +223,7 @@ elif st.session_state["page"] == "dashboard":
     user_data = df[df["User"] == user]
 
     try:
-        total_budget = float(users_df.loc[users_df["Email"] == user, "Total_budget"].iloc[0])
+        total_budget = float(users_df.loc[users_df["Email"] == user, "Total_Budget"].iloc[0])
     except:
         total_budget = 0
 
