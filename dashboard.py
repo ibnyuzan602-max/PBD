@@ -119,9 +119,16 @@ def load_or_create_google_sheet(sheet_name, expected_cols):
         return pd.DataFrame(columns=expected_cols)
 
 def save_google_sheet(df, sheet_name):
-        ws = sheet.worksheet(sheet_name)
-        ws.clear()
-        ws.update([df.columns.values.tolist()] + df.values.tolist())
+    ws = sheet.worksheet(sheet_name)
+
+    # Convert datetime to string to avoid JSON serialization error
+    df_converted = df.copy()
+    for col in df_converted.columns:
+        if str(df_converted[col].dtype) == "datetime64[ns]":
+            df_converted[col] = df_converted[col].astype(str)
+
+    ws.clear()
+    ws.update([df_converted.columns.values.tolist()] + df_converted.values.tolist())
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
