@@ -441,7 +441,7 @@ if review_df.empty:
 else:
     for i in range(len(review_df)-1, -1, -1):   # tampilkan terbaru dulu
         st.markdown(f"""
-        **{review_df.iloc[i]['Nama']}** ({review_df.iloc[i]['Email']})  
+        **{review_df.iloc[i]['Name']}** ({review_df.iloc[i]['Email']})  
         Rating: {"⭐" * int(review_df.iloc[i]['Rating'])}  
         _"{review_df.iloc[i]['Ulasan']}"_  
         **🕒 {review_df.iloc[i]['Tanggal']}**
