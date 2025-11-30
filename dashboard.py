@@ -12,6 +12,7 @@ import altair as alt
 from PIL import Image
 import io
 import requests
+import csv
 
 # ======================
 # 🖼️ Konfigurasi Logo & Favicon
@@ -388,100 +389,52 @@ elif st.session_state["page"] == "dashboard":
         )
 
 # =======================
-# ⭐ FITUR ULASAN & RATING (Google Sheets)
+# ⭐ FITUR ULASAN & RATING
 # =======================
 st.markdown("---")
 st.subheader("⭐ Berikan Ulasan Tentang Aplikasi Ini")
 
-# Kolom yang diharapkan pada sheet Reviews
-EXPECTED_REVIEWS_COLS = ["Name", "Email", "Rating", "Review", "Time"]
+review_file = "reviews.csv"
 
-# Muat atau buat sheet "Reviews" (menggunakan fungsi yang sudah ada)
-reviews_df = load_or_create_google_sheet("Reviews", EXPECTED_REVIEWS_COLS)
+# Cek file review jika belum ada
+if not os.path.exists(review_file):
+    with open(review_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Nama", "Email", "Rating", "Ulasan", "Tanggal"])
 
 # Form input review
 with st.form("form_ulasan", clear_on_submit=True):
-    # Jika user login, gunakan email user sebagai default (readonly)
-    if st.session_state.get("logged_in", False) and st.session_state.get("user"):
-        nama_ulasan = st.text_input("Nama", value="", placeholder="Tulis nama Anda (opsional)")
-        email_default = st.session_state.get("user")
-        try:
-            # disabled parameter tersedia di Streamlit; kalau versi lama tidak ada, tetap akan tampil sebagai input biasa
-            email_ulasan = st.text_input("Email", value=email_default, disabled=True)
-        except TypeError:
-            # fallback jika streamlit versi lama tidak mendukung disabled
-            email_ulasan = st.text_input("Email", value=email_default)
-    else:
-        nama_ulasan = st.text_input("Nama")
-        email_ulasan = st.text_input("Email")
-
-    rating_ulasan = st.slider("Rating", min_value=1, max_value=5, step=1, value=5)
+    nama_ulasan = st.text_input("Nama")
+    email_ulasan = st.text_input("Email")
+    rating_ulasan = st.slider("Rating", min_value=1, max_value=5, step=1)
     isi_ulasan = st.text_area("Tulis ulasan Anda di sini...")
     kirim_ulasan = st.form_submit_button("Kirim Ulasan")
 
 if kirim_ulasan:
-    # Validasi sederhana
-    if (nama_ulasan is None or str(nama_ulasan).strip() == ""):
-        st.warning("Mohon isi nama Anda.")
-    elif (email_ulasan is None or str(email_ulasan).strip() == ""):
-        st.warning("Mohon isi email Anda.")
-    elif (isi_ulasan is None or str(isi_ulasan).strip() == ""):
-        st.warning("Mohon tulis ulasan Anda.")
+    if nama_ulasan and isi_ulasan and email_ulasan:
+        with open(review_file, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([nama_ulasan, email_ulasan, rating_ulasan, isi_ulasan,
+                             datetime.now().strftime("%d-%m-%Y %H:%M:%S")])
+        st.success("🎉 Terima kasih, ulasan Anda telah dikirim!")
+        st.rerun()  # ganti dari experimental_rerun
     else:
-        # Format waktu: "30 Nov 2025, 21:14"
-        waktu_now = datetime.now().strftime("%d %b %Y, %H:%M")
+        st.warning("⚠ Mohon isi nama, email, dan ulasan terlebih dahulu.")
 
-        # Tambahkan ke dataframe reviews_df (lokal) dan simpan ke Google Sheets
-        new_review = pd.DataFrame([{
-            "Name": nama_ulasan.strip(),
-            "Email": email_ulasan.strip(),
-            "Rating": int(rating_ulasan),
-            "Review": isi_ulasan.strip(),
-            "Time": waktu_now
-        }], columns=EXPECTED_REVIEWS_COLS)
-
-        reviews_df = pd.concat([reviews_df, new_review], ignore_index=True)
-        # Simpan kembali ke Google Sheet
-        try:
-            save_google_sheet(reviews_df, "Reviews")
-            st.success("🎉 Terima kasih! Ulasan Anda telah disimpan.")
-        except Exception as e:
-            st.error("⚠ Gagal menyimpan ulasan ke Google Sheets.")
-            st.exception(e)
-
-        # Rerun agar daftar ulasan terbaru langsung muncul
-        st.experimental_rerun()
-
-# Tampilkan daftar ulasan terbaru (terurut dari yang terbaru)
+# Tampilkan daftar ulasan terbaru
 st.markdown("### 💬 Ulasan Pengguna")
 
-# Jika reviews_df tidak kosong, urutkan berdasarkan kolom Time (yang berupa string format dd Mon YYYY, HH:MM)
-if not reviews_df.empty:
-    # Untuk keamanan, jika kolom Time ada tapi berformat beda, kita tampilkan tanpa error
-    try:
-        # Coba parse waktu menjadi datetime untuk sorting; jika gagal, fallback ke urutan existing
-        reviews_df_display = reviews_df.copy()
-        # Buat kolom bantu parse (format: "30 Nov 2025, 21:14")
-        reviews_df_display["__parsed_time"] = pd.to_datetime(reviews_df_display["Time"], format="%d %b %Y, %H:%M", errors="coerce")
-        reviews_df_display = reviews_df_display.sort_values(by="__parsed_time", ascending=False, na_position="last")
-    except Exception:
-        reviews_df_display = reviews_df.copy()
+if os.path.exists(review_file):
+    review_df = pd.read_csv(review_file)
 
-    for _, row in reviews_df_display.iterrows():
-        name = row.get("Name", "")
-        email = row.get("Email", "")
-        rating = int(row.get("Rating", 0)) if not pd.isna(row.get("Rating", None)) else 0
-        review_text = row.get("Review", "")
-        waktu = row.get("Time", "")
-
-        st.markdown(
-            f"""
-            **{name}**  —  `{email}`  
-            📅 {waktu}  
-            Rating: {'⭐' * rating} ({rating}/5)  
-            > {review_text}
-            """
-        )
-        st.markdown("---")
-else:
-    st.info("Belum ada ulasan.")
+    if not review_df.empty:
+        for i in range(len(review_df) - 1, -1, -1):  # urut terbaru ke lama
+            st.markdown(f"""
+            **{review_df.iloc[i]['Nama']}** ({review_df.iloc[i]['Email']})  
+            Rating: {'⭐' * int(review_df.iloc[i]['Rating'])}  
+            _"{review_df.iloc[i]['Ulasan']}"_  
+            **🕒 {review_df.iloc[i]['Tanggal']}**
+            """)
+            st.markdown("---")
+    else:
+        st.info("Belum ada ulasan.")
