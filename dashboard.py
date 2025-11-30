@@ -120,10 +120,7 @@ def load_or_create_google_sheet(sheet_name, expected_cols):
 
 def save_google_sheet(df, sheet_name):
     ws = sheet.worksheet(sheet_name)
-
-    # Convert seluruh dataframe menjadi string aman untuk Google Sheets
     df_converted = df.copy().astype(str)
-
     ws.clear()
     ws.update([df_converted.columns.values.tolist()] + df_converted.values.tolist())
 
@@ -132,6 +129,7 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
 
 # ======================
 # ⚙️ Session Init
@@ -208,19 +206,25 @@ elif st.session_state["page"] == "signup":
     st.button("⬅ Kembali", on_click=lambda: go_to("home"))
 
 # ======================
-# 📊 DASHBOARD
+# 📊 DASHBOARD + SIDEBAR
 # ======================
 elif st.session_state["page"] == "dashboard":
     if not st.session_state.get("logged_in", False):
         go_to("login")
 
+    # Sidebar Menu
+    with st.sidebar:
+        st.image(img, width=120)
+        st.title("📌 Menu")
+        menu = st.radio("Navigasi", ["Dashboard", "Plot", "Analisis AI", "Download Data"])
+        st.write("---")
+        if st.button("🚪 Logout"):
+            st.session_state["logged_in"] = False
+            st.session_state["user"] = None
+            go_to("home")
+
     user = st.session_state["user"]
     st.title(f"💰 Dashboard Keuangan - {user}")
-
-    if st.button("🚪 Logout"):
-        st.session_state["logged_in"] = False
-        st.session_state["user"] = None
-        go_to("home")
 
     df = load_or_create_google_sheet("Transactions", EXPECTED_TRANSACTIONS_COLS)
     users_df = load_or_create_google_sheet("Users", EXPECTED_USERS_COLS)
@@ -231,70 +235,81 @@ elif st.session_state["page"] == "dashboard":
     except:
         total_budget = 0
 
-    st.subheader("🧾 Tambah Transaksi")
-    with st.form("tambah_transaksi", clear_on_submit=True):
-        tanggal = st.date_input("Tanggal", datetime.now())
-        kategori = st.selectbox("Kategori", ["Makanan", "Transportasi", "Hiburan", "Tagihan", "Gaji", "Lainnya"])
-        jumlah = st.number_input("Jumlah (positif = pengeluaran, negatif = pemasukan)", step=1000)
-        submit = st.form_submit_button("💾 Simpan")
+    # =======================
+    # DASHBOARD PAGE
+    # =======================
+    if menu == "Dashboard":
+        st.subheader("🧾 Tambah Transaksi")
+        with st.form("tambah_transaksi", clear_on_submit=True):
+            tanggal = st.date_input("Tanggal", datetime.now())
+            kategori = st.selectbox("Kategori", ["Makanan", "Transportasi", "Hiburan", "Tagihan", "Gaji", "Lainnya"])
+            jumlah = st.number_input("Jumlah (positif = pengeluaran, negatif = pemasukan)", step=1000)
+            submit = st.form_submit_button("💾 Simpan")
 
-    if submit:
-        new_row = pd.DataFrame([{ "User": user, "Tanggal": tanggal, "Kategori": kategori, "Jumlah": jumlah }])
-        df = pd.concat([df, new_row], ignore_index=True)
-        save_google_sheet(df, "Transactions")
-        st.success("✅ Transaksi disimpan!")
-        st.rerun()
+        if submit:
+            new_row = pd.DataFrame([{ "User": user, "Tanggal": tanggal, "Kategori": kategori, "Jumlah": jumlah }])
+            df = pd.concat([df, new_row], ignore_index=True)
+            save_google_sheet(df, "Transactions")
+            st.success("✅ Transaksi disimpan!")
+            st.rerun()
 
-    st.subheader("📋 Riwayat Transaksi")
-    st.dataframe(user_data)
+        st.subheader("📋 Riwayat Transaksi")
+        st.dataframe(user_data)
 
-    if not user_data.empty:
-        pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
-        pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
-        sisa = pemasukan - pengeluaran
+    # =======================
+    # PLOT DATA
+    # =======================
+    elif menu == "Plot":
+        st.subheader("📊 Tren Transaksi")
+        if not user_data.empty:
+            pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
+            pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
+            sisa = pemasukan - pengeluaran
 
-        def safe_number(v):
-            try:
-                return float(v)
-            except:
-                return 0
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Pemasukan", f"Rp {pemasukan:,}")
+            col2.metric("Pengeluaran", f"Rp {pengeluaran:,}")
+            col3.metric("Sisa", f"Rp {sisa:,}")
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Pemasukan", f"Rp {safe_number(pemasukan):,}")
-        col2.metric("Pengeluaran", f"Rp {safe_number(pengeluaran):,}")
-        col3.metric("Sisa", f"Rp {safe_number(sisa):,}")
-        col4.metric("Budget Awal", f"Rp {safe_number(total_budget):,}")
+            user_data["Tanggal"] = pd.to_datetime(user_data["Tanggal"], errors="coerce")
+            daily_summary = user_data.groupby("Tanggal")["Jumlah"].sum().reset_index()
 
-        st.subheader("📆 Tren Transaksi")
-        user_data["Tanggal"] = pd.to_datetime(user_data["Tanggal"], errors="coerce")
-        daily_summary = user_data.groupby("Tanggal")["Jumlah"].sum().reset_index()
+            chart = alt.Chart(daily_summary).mark_line(point=True).encode(
+                x="Tanggal:T",
+                y="Jumlah:Q",
+                tooltip=["Tanggal", "Jumlah"]
+            ).properties(width=700, height=400)
+            st.altair_chart(chart, use_container_width=True)
 
-        chart = alt.Chart(daily_summary).mark_line(point=True).encode(
-            x="Tanggal:T",
-            y="Jumlah:Q",
-            tooltip=["Tanggal", "Jumlah"]
-        ).properties(width=700, height=400)
-        st.altair_chart(chart, use_container_width=True)
+            st.subheader("📉 Distribusi Pengeluaran")
+            pengeluaran_kat = user_data[user_data["Jumlah"] > 0].groupby("Kategori")["Jumlah"].sum()
 
-        st.subheader("📉 Distribusi Pengeluaran")
-        pengeluaran_kat = user_data[user_data["Jumlah"] > 0].groupby("Kategori")["Jumlah"].sum()
+            if not pengeluaran_kat.empty:
+                fig, ax = plt.subplots()
+                ax.pie(pengeluaran_kat, labels=pengeluaran_kat.index, autopct="%1.1f%%")
+                st.pyplot(fig)
+        else:
+            st.info("Belum ada data transaksi.")
 
-        if not pengeluaran_kat.empty:
-            fig, ax = plt.subplots()
-            ax.pie(pengeluaran_kat, labels=pengeluaran_kat.index, autopct="%1.1f%%")
-            st.pyplot(fig)
-
+    # =======================
+    # ANALISIS AI
+    # =======================
+    elif menu == "Analisis AI":
         st.subheader("🤖 Analisis AI")
-        prompt = f"""
-Analisis keuangan user {user}:
-- Total pemasukan: {pemasukan}
-- Total pengeluaran: {pengeluaran}
-- Sisa budget: {sisa}
-- Total budget awal: {total_budget}
-Berikan 3 saran keuangan.
-"""
-
         if st.button("Analisis Sekarang"):
+            pengeluaran = user_data[user_data["Jumlah"] > 0]["Jumlah"].sum()
+            pemasukan = abs(user_data[user_data["Jumlah"] < 0]["Jumlah"].sum())
+            sisa = pemasukan - pengeluaran
+
+            prompt = f"""
+            Analisis keuangan user {user}:
+            - Total pemasukan: {pemasukan}
+            - Total pengeluaran: {pengeluaran}
+            - Sisa budget: {sisa}
+            - Total budget awal: {total_budget}
+            Berikan 3 saran keuangan.
+            """
+
             with st.spinner("Memproses..."):
                 try:
                     response = client.chat.completions.create(
@@ -312,5 +327,16 @@ Berikan 3 saran keuangan.
                 except Exception as e:
                     st.error("Gagal menganalisis.")
                     st.exception(e)
-    else:
-        st.info("Belum ada transaksi.")
+
+    # =======================
+    # DOWNLOAD DATA
+    # =======================
+    elif menu == "Download Data":
+        st.subheader("📥 Download Spreadsheet Keuangan")
+        csv = user_data.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "📥 Download CSV",
+            csv,
+            f"riwayat_keuangan_{user}.csv",
+            "text/csv"
+        )
