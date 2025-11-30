@@ -256,7 +256,7 @@ elif st.session_state["page"] == "dashboard":
         st.subheader("📋 Riwayat Transaksi")
         st.dataframe(user_data)
 
-    # =======================
+       # =======================
     # PLOT DATA
     # =======================
     elif menu == "Plot":
@@ -274,6 +274,9 @@ elif st.session_state["page"] == "dashboard":
             user_data["Tanggal"] = pd.to_datetime(user_data["Tanggal"], errors="coerce")
             daily_summary = user_data.groupby("Tanggal")["Jumlah"].sum().reset_index()
 
+            # =======================
+            # PLOT 1 - LINE CHART
+            # =======================
             chart = alt.Chart(daily_summary).mark_line(point=True).encode(
                 x="Tanggal:T",
                 y="Jumlah:Q",
@@ -281,6 +284,9 @@ elif st.session_state["page"] == "dashboard":
             ).properties(width=700, height=400)
             st.altair_chart(chart, use_container_width=True)
 
+            # =======================
+            # PLOT 2 - PIE CHART
+            # =======================
             st.subheader("📉 Distribusi Pengeluaran")
             pengeluaran_kat = user_data[user_data["Jumlah"] > 0].groupby("Kategori")["Jumlah"].sum()
 
@@ -288,6 +294,46 @@ elif st.session_state["page"] == "dashboard":
                 fig, ax = plt.subplots()
                 ax.pie(pengeluaran_kat, labels=pengeluaran_kat.index, autopct="%1.1f%%")
                 st.pyplot(fig)
+
+            # =======================
+            # PLOT 3 - BAR CHART
+            # =======================
+            st.subheader("📦 Bar Chart Pengeluaran per Kategori")
+            bar_data = pengeluaran_kat.reset_index()
+            bar_chart = alt.Chart(bar_data).mark_bar().encode(
+                x="Kategori:N",
+                y="Jumlah:Q",
+                tooltip=["Kategori", "Jumlah"]
+            ).properties(width=700, height=400)
+            st.altair_chart(bar_chart, use_container_width=True)
+
+            # =======================
+            # PLOT 4 - AREA CHART
+            # =======================
+            st.subheader("📈 Area Chart Tren Total Harian")
+            area_chart = alt.Chart(daily_summary).mark_area(opacity=0.4).encode(
+                x="Tanggal:T",
+                y="Jumlah:Q"
+            ).properties(width=700, height=400)
+            st.altair_chart(area_chart, use_container_width=True)
+
+            # =======================
+            # PLOT 5 - SCATTER PLOT
+            # =======================
+            st.subheader("🎯 Scatter Plot Pemasukan vs Pengeluaran")
+
+            scatter_df = pd.DataFrame({
+                "pemasukan": [pemasukan],
+                "pengeluaran": [pengeluaran]
+            })
+
+            fig_scatter, ax_scatter = plt.subplots()
+            ax_scatter.scatter(scatter_df["pemasukan"], scatter_df["pengeluaran"])
+            ax_scatter.set_xlabel("Pemasukan")
+            ax_scatter.set_ylabel("Pengeluaran")
+            ax_scatter.set_title("Korelasi Pendapatan vs Pengeluaran")
+            st.pyplot(fig_scatter)
+
         else:
             st.info("Belum ada data transaksi.")
 
