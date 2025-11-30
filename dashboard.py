@@ -16,7 +16,7 @@ import requests
 # ======================
 # 🖼️ Konfigurasi Logo & Favicon
 # ======================
-logo_path = "Logo.jpg"
+logo_path = "Logo Findme.png"
 logo_url = None
 
 def load_image_bytes(path=None, url=None):
