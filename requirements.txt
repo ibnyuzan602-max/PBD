@@ -2,8 +2,13 @@ streamlit
 pandas
 python-dotenv
 bcrypt
-plotly
 groq
 requests
 matplotlib
 altair
+gspread
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+oauth2client
+Pillow
