@@ -394,13 +394,16 @@ elif st.session_state["page"] == "dashboard":
 st.markdown("---")
 st.subheader("⭐ Berikan Ulasan Tentang Aplikasi Ini")
 
-review_file = "reviews.csv"
+REVIEW_COLS = ["Nama", "Email", "Rating", "Ulasan", "Tanggal"]
 
-# Cek file review jika belum ada
-if not os.path.exists(review_file):
-    with open(review_file, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Nama", "Email", "Rating", "Ulasan", "Tanggal"])
+# Load sheet ulasan (atau buat jika belum ada)
+def load_reviews():
+    return load_or_create_google_sheet("Reviews", REVIEW_COLS)
+
+def save_reviews(df):
+    save_google_sheet(df, "Reviews")
+
+review_df = load_reviews()
 
 # Form input review
 with st.form("form_ulasan", clear_on_submit=True):
@@ -411,30 +414,36 @@ with st.form("form_ulasan", clear_on_submit=True):
     kirim_ulasan = st.form_submit_button("Kirim Ulasan")
 
 if kirim_ulasan:
-    if nama_ulasan and isi_ulasan and email_ulasan:
-        with open(review_file, "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([nama_ulasan, email_ulasan, rating_ulasan, isi_ulasan,
-                             datetime.now().strftime("%d-%m-%Y %H:%M:%S")])
+    if nama_ulasan and email_ulasan and isi_ulasan:
+        new_review = pd.DataFrame([[
+            nama_ulasan,
+            email_ulasan,
+            rating_ulasan,
+            isi_ulasan,
+            datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+        ]], columns=REVIEW_COLS)
+
+        review_df = pd.concat([review_df, new_review], ignore_index=True)
+        save_reviews(review_df)
+
         st.success("🎉 Terima kasih, ulasan Anda telah dikirim!")
-        st.rerun()  # ganti dari experimental_rerun
+        st.rerun()
     else:
         st.warning("⚠ Mohon isi nama, email, dan ulasan terlebih dahulu.")
 
-# Tampilkan daftar ulasan terbaru
+# Tampilkan daftar ulasan
 st.markdown("### 💬 Ulasan Pengguna")
 
-if os.path.exists(review_file):
-    review_df = pd.read_csv(review_file)
+review_df = load_reviews()
 
-    if not review_df.empty:
-        for i in range(len(review_df) - 1, -1, -1):  # urut terbaru ke lama
-            st.markdown(f"""
-            **{review_df.iloc[i]['Nama']}** ({review_df.iloc[i]['Email']})  
-            Rating: {'⭐' * int(review_df.iloc[i]['Rating'])}  
-            _"{review_df.iloc[i]['Ulasan']}"_  
-            **🕒 {review_df.iloc[i]['Tanggal']}**
-            """)
-            st.markdown("---")
-    else:
-        st.info("Belum ada ulasan.")
+if review_df.empty:
+    st.info("Belum ada ulasan, jadilah yang pertama memberikan review ⭐")
+else:
+    for i in range(len(review_df)-1, -1, -1):   # tampilkan terbaru dulu
+        st.markdown(f"""
+        **{review_df.iloc[i]['Nama']}** ({review_df.iloc[i]['Email']})  
+        Rating: {"⭐" * int(review_df.iloc[i]['Rating'])}  
+        _"{review_df.iloc[i]['Ulasan']}"_  
+        **🕒 {review_df.iloc[i]['Tanggal']}**
+        """)
+        st.markdown("---")
