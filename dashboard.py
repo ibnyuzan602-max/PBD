@@ -386,3 +386,53 @@ elif st.session_state["page"] == "dashboard":
             f"riwayat_keuangan_{user}.csv",
             "text/csv"
         )
+
+   # =======================
+# ⭐ FITUR ULASAN & RATING
+# =======================
+st.markdown("---")
+st.subheader("⭐ Berikan Ulasan Tentang Aplikasi Ini")
+
+import csv
+
+review_file = "reviews.csv"
+
+# Cek file review jika belum ada
+if not os.path.exists(review_file):
+    with open(review_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Nama", "Rating", "Ulasan"])
+
+# Form input review
+with st.form("form_ulasan", clear_on_submit=True):
+    nama_ulasan = st.text_input("Nama")
+    rating_ulasan = st.slider("Rating", min_value=1, max_value=5, step=1)
+    isi_ulasan = st.text_area("Tulis ulasan Anda di sini...")
+    kirim_ulasan = st.form_submit_button("Kirim Ulasan")
+
+if kirim_ulasan:
+    if nama_ulasan and isi_ulasan:
+        with open(review_file, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([nama_ulasan, rating_ulasan, isi_ulasan])
+        st.success("🎉 Terima kasih, ulasan Anda telah dikirim!")
+    else:
+        st.warning("⚠ Mohon isi nama dan ulasan terlebih dahulu.")
+
+# Tampilkan daftar ulasan terbaru
+st.markdown("### 💬 Ulasan Pengguna")
+
+if os.path.exists(review_file):
+    review_df = pd.read_csv(review_file)
+
+    if not review_df.empty:
+        for i in range(len(review_df) - 1, -1, -1):  # urut terbaru ke lama
+            st.markdown(f"""
+            **{review_df.iloc[i]['Nama']}**  
+            Rating: {'⭐' * int(review_df.iloc[i]['Rating'])}  
+            _"{review_df.iloc[i]['Ulasan']}"_
+            """)
+            st.markdown("---")
+    else:
+        st.info("Belum ada ulasan.")
+
